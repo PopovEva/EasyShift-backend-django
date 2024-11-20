@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 class Branch(models.Model):
     name = models.CharField(max_length=100)
@@ -37,23 +38,13 @@ class Shift(models.Model):
 
 
 class Employee(models.Model):
-    ROLES = [
-        ('admin', 'Admin'),
-        ('worker', 'Worker'),
-    ]
-
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=100)
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
     phone_number = models.CharField(max_length=15)
-    email = models.EmailField()
-    role = models.CharField(max_length=10, choices=ROLES)
-    password = models.CharField(max_length=128)  # Рекомендуется использовать встроенную User модель Django
-    is_active = models.BooleanField(default=True)
     notes = models.TextField(null=True, blank=True)
     branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True)
 
     def __str__(self):
-        return f"{self.first_name} {self.last_name} ({self.branch.name})"
+        return f"{self.user.first_name} {self.user.last_name} ({self.branch.name})"
 
 
 class Schedule(models.Model):
