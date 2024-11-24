@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 class Branch(models.Model):
     name = models.CharField(max_length=100)
@@ -20,21 +21,47 @@ class Room(models.Model):
 
 
 class Shift(models.Model):
+    MORNING = 'בוקר'
+    AFTERNOON = 'אמצע'
+    EVENING = 'ערב'
     SHIFT_TYPES = [
-        ('morning', 'Morning'),
-        ('midday', 'Midday'),
-        ('evening', 'Evening'),
+        (MORNING, 'Morning'),
+        (AFTERNOON, 'Afternoon'),
+        (EVENING, 'Evening'),
     ]
 
+    MONDAY = 'Monday'
+    TUESDAY = 'Tuesday'
+    WEDNESDAY = 'Wednesday'
+    THURSDAY = 'Thursday'
+    FRIDAY = 'Friday'
+    SATURDAY = 'Saturday'
+    SUNDAY = 'Sunday'
+    DAYS_OF_WEEK = [
+        (MONDAY, 'Monday'),
+        (TUESDAY, 'Tuesday'),
+        (WEDNESDAY, 'Wednesday'),
+        (THURSDAY, 'Thursday'),
+        (FRIDAY, 'Friday'),
+        (SATURDAY, 'Saturday'),
+        (SUNDAY, 'Sunday'),
+    ]
+
+    room = models.ForeignKey(Room, on_delete=models.CASCADE)
     shift_type = models.CharField(max_length=10, choices=SHIFT_TYPES)
-    day_of_week = models.CharField(max_length=10)  # Можно использовать ENUM или CHOICES для дней недели
+    day_of_week = models.CharField(max_length=10, choices=DAYS_OF_WEEK)  # Используем CHOICES для дней недели
+    date = models.DateField(default=timezone.now)
     start_time = models.TimeField()
     end_time = models.TimeField()
-    branch = models.ForeignKey(Branch, on_delete=models.CASCADE)
-    room = models.ForeignKey(Room, on_delete=models.CASCADE)
+    employee = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    # branch = models.ForeignKey(Branch, on_delete=models.CASCADE)
 
+    class Meta:
+        unique_together = ('room', 'shift_type', 'date', 'start_time')  # Ограничение уникальности для предотвращения конфликтов смен
+        
     def __str__(self):
-        return f"{self.get_shift_type_display()} - {self.day_of_week} ({self.branch.name}, {self.room.name})"
+        return f"{self.get_shift_type_display()} - {self.get_day_of_week_display()} ({self.room.branch.name}, {self.room.name})"
+
 
 
 class Employee(models.Model):
