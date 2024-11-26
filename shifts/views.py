@@ -2,6 +2,7 @@ from rest_framework import viewsets
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from .models import Branch, Room, Shift, Employee, Schedule
 from .serializers import BranchSerializer, RoomSerializer, ShiftSerializer, EmployeeSerializer, ScheduleSerializer, UserEmployeeSerializer
@@ -118,3 +119,16 @@ class CreateScheduleView(APIView):
 
         except Branch.DoesNotExist:
             return Response({'error': 'Branch not found'}, status=status.HTTP_404_NOT_FOUND)    
+
+class RoomsByBranchView(generics.ListAPIView):
+    serializer_class = RoomSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        branch_id = self.kwargs['branch_id']
+        return Room.objects.filter(branch_id=branch_id)
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
