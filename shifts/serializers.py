@@ -27,9 +27,22 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
 
 class ScheduleSerializer(serializers.ModelSerializer):
+    shift_details = serializers.SerializerMethodField()
+    employee_name = serializers.SerializerMethodField()
+
     class Meta:
         model = Schedule
-        fields = '__all__'
+        fields = ['week_start_date', 'branch', 'shift', 'shift_details', 'employee', 'employee_name', 'status']
+
+    def get_shift_details(self, obj):
+        return {
+            "room": obj.shift.room.name,
+            "shift_type": obj.shift.shift_type,
+        }
+
+    def get_employee_name(self, obj):
+        return f"{obj.employee.user.first_name} {obj.employee.user.last_name}" if obj.employee else None
+
 
 
 # Кастомный сериализатор для создания User и Employee

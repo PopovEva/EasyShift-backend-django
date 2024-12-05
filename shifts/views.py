@@ -7,7 +7,8 @@ from rest_framework.permissions import IsAuthenticated
 from .models import Branch, Room, Shift, Employee, Schedule
 from .serializers import BranchSerializer, RoomSerializer, ShiftSerializer, EmployeeSerializer, ScheduleSerializer, UserEmployeeSerializer
 from .permissions import IsAdminOrReadOnly, IsWorkerOrAdmin
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group, User
+from django.utils.dateparse import parse_date
 
 
 class BranchViewSet(viewsets.ModelViewSet):
@@ -83,42 +84,127 @@ class UserInfoView(APIView):
         return Response(data)
     
 class CreateScheduleView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]  # Только админ может создавать расписание
+    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
 
     def post(self, request):
         branch_id = request.data.get('branch_id')
-        shifts_data = request.data.get('shifts')
+        start_date = request.data.get('start_date')
+        schedule_data = request.data.get('schedule')
+
+        if not branch_id or not start_date or not schedule_data:
+            return Response({'error': 'Branch ID, start date, and schedule data are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             branch = Branch.objects.get(pk=branch_id)
+        except Branch.DoesNotExist:
+            return Response({'error': 'Branch not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-            for shift_data in shifts_data:
-                room_id = shift_data.get('room_id')
-                shift_type = shift_data.get('shift_type')
-                date = shift_data.get('date')
-                start_time = shift_data.get('start_time')
-                end_time = shift_data.get('end_time')
-                employee_id = shift_data.get('employee_id')
+        try:
+            start_date = parse_date(start_date)
+            if not start_date:
+                return Response({'error': 'Invalid start date format.'}, status=status.HTTP_400_BAD_REQUEST)
 
-                try:
-                    room = Room.objects.get(pk=room_id, branch=branch)
-                    shift = Shift.objects.create(
-                        room=room,
-                        shift_type=shift_type,
-                        date=date,
-                        start_time=start_time,
-                        end_time=end_time,
-                        employee_id=employee_id,
-                    )
-                    shift.save()
+            # Проходим по расписанию
+            for day_data in schedule_data:
+                day_of_week = day_data.get('day')  # Например, ראשון
+                for shift_data in day_data.get('shifts', []):
+                    shift_type = shift_data.get('shift')  # Например, בוקר
+                    for room_data in shift_data.get('rooms', []):
+                        room_name = room_data.get('room')
+                        employee_id = room_data.get('employee', None)
 
-                except Room.DoesNotExist:
-                    return Response({'error': f'Room with id {room_id} does not exist in branch {branch.name}'}, status=status.HTTP_400_BAD_REQUEST)
+                        try:
+                            room = Room.objects.get(name=room_name, branch=branch)
+                        except Room.DoesNotExist:
+                            return Response(
+                                {'error': f'Room "{room_name}" does not exist in branch "{branch.name}".'},
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
+
+                        employee = None
+                        if employee_id:
+                            try:
+                                employee = Employee.objects.get(pk=employee_id)
+                            except Employee.DoesNotExist:
+                                return Response(
+                                    {'error': f'Employee with ID {employee_id} does not exist.'},
+                                    status=status.HTTP_400_BAD_REQUEST
+                                )
+
+                        # Создаём смену
+                        shift, created = Shift.objects.get_or_create(
+                            room=room,
+                            shift_type=shift_type,
+                            day_of_week=day_of_week,
+                            date=start_date,
+                            start_time=None,  # Может быть заполнено позже
+                            end_time=None
+                        )
+
+                        # Создаём запись расписания
+                        Schedule.objects.create(
+                            week_start_date=start_date,
+                            shift=shift,
+                            employee=employee,
+                            branch=branch,
+                            status=Schedule.DRAFT  # Отмечаем, что это шаблон
+                        )
 
             return Response({'status': 'Schedule successfully created'}, status=status.HTTP_201_CREATED)
 
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)   
+        
+class SaveScheduleView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        branch_id = request.data.get('branch_id')
+        week_start_date = request.data.get('start_date')
+        schedule_data = request.data.get('schedule')
+        if not branch_id:
+            return Response({"error": "Branch ID is required"}, status=400)
+        try:
+            branch = Branch.objects.get(pk=branch_id)
+            for day in schedule_data:
+                for shift in day['shifts']:
+                    for room in shift['rooms']:
+                        Schedule.objects.update_or_create(
+                            week_start_date=week_start_date,
+                            branch=branch,
+                            shift=Shift.objects.get(room__name=room['room'], shift_type=shift['shift']),
+                            defaults={
+                                'employee': room.get('employee'),
+                                'status': request.data.get('status', Schedule.DRAFT),
+                            }
+                        )
+            return Response({"status": "Schedule saved successfully"})
         except Branch.DoesNotExist:
-            return Response({'error': 'Branch not found'}, status=status.HTTP_404_NOT_FOUND)    
+            return Response({"error": "Branch not found"}, status=404)         
+
+class GetScheduleView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, branch_id, status):
+        schedules = Schedule.objects.filter(
+            shift__room__branch_id=branch_id,  # Ссылка через ForeignKey на branch
+            status=status
+        ).select_related('shift', 'shift__room', 'employee')  # Предзагрузка для оптимизации
+
+        data = []
+        for schedule in schedules:
+            data.append({
+                "week_start_date": schedule.week_start_date,
+                "shift_details": {
+                    "shift_type": schedule.shift.shift_type,
+                    "room": schedule.shift.room.name,
+                },
+                "day": schedule.shift.day_of_week,
+                "employee_name": schedule.employee.user.get_full_name() if schedule.employee else None,
+            })
+
+        return Response(data)
+
 
 class RoomsByBranchView(generics.ListAPIView):
     serializer_class = RoomSerializer

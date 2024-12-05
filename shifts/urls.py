@@ -1,7 +1,7 @@
 # shifts/urls.py
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import BranchViewSet, RoomViewSet, RoomsByBranchView, ShiftViewSet, EmployeeViewSet, ScheduleViewSet, CreateEmployeeView, CreateScheduleView
+from .views import BranchViewSet, GetScheduleView, RoomViewSet, RoomsByBranchView, ShiftViewSet, EmployeeViewSet, ScheduleViewSet, CreateEmployeeView, CreateScheduleView, SaveScheduleView
 
 router = DefaultRouter()
 router.register(r'branches', BranchViewSet)
@@ -15,4 +15,6 @@ urlpatterns = [
     path('create-employee/', CreateEmployeeView.as_view(), name='create-employee'),
     path('create-schedule/', CreateScheduleView.as_view(http_method_names=['post']), name='create-schedule'),
     path('branches/<int:branch_id>/rooms/', RoomsByBranchView.as_view(), name='rooms-by-branch'),
+    path('get-schedule/<int:branch_id>/<str:status>/', GetScheduleView.as_view(), name='get-schedule'),
+    path('save-schedule/', SaveScheduleView.as_view(), name='save-schedule'),
 ]

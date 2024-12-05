@@ -51,8 +51,8 @@ class Shift(models.Model):
     shift_type = models.CharField(max_length=10, choices=SHIFT_TYPES)
     day_of_week = models.CharField(max_length=10, choices=DAYS_OF_WEEK)  # Используем CHOICES для дней недели
     date = models.DateField(default=timezone.now)
-    start_time = models.TimeField()
-    end_time = models.TimeField()
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
     employee = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     # branch = models.ForeignKey(Branch, on_delete=models.CASCADE)
 
@@ -75,15 +75,20 @@ class Employee(models.Model):
 
 
 class Schedule(models.Model):
-    week_start_date = models.DateField()
-    shift = models.ForeignKey(Shift, on_delete=models.CASCADE)
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, null=True, blank=True)
-    status = models.CharField(max_length=20, choices=[
-        ('requested', 'Requested'),
-        ('approved', 'Approved'),
-        ('rejected', 'Rejected'),
-    ])
+    DRAFT = 'draft'
+    APPROVED = 'approved'
+    STATUS_CHOICES = [
+        (DRAFT, 'Draft'),
+        (APPROVED, 'Approved'),
+    ]
+
+    week_start_date = models.DateField()  # Дата начала недели
+    shift = models.ForeignKey(Shift, on_delete=models.CASCADE)  # Связь с конкретной сменой
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, null=True, blank=True)  # Сотрудник
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE)  # Связь с филиалом
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=DRAFT)  # Статус расписания
 
     def __str__(self):
-        return f"{self.shift} - {self.employee} ({self.status})"
+        return f"{self.week_start_date} - {self.branch.name} ({self.status})"
+
 
