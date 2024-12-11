@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 from datetime import timedelta
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -112,6 +113,45 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'work_shift_scheduler.wsgi.application'
 
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{asctime} | {levelname} | {name} | {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} | {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'INFO',  # Логи INFO и выше записываются в файл
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'system.log'),
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'WARNING',  # Только WARNING и выше выводятся в консоль
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'system_logger': {
+            'handlers': ['file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
