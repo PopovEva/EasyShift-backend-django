@@ -19,20 +19,28 @@ class ShiftSerializer(serializers.ModelSerializer):
         model = Shift
         fields = '__all__'
 
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['username', 'first_name', 'last_name']
 
 class EmployeeSerializer(serializers.ModelSerializer):
+    user = UserSerializer()
+    branch = BranchSerializer()
+    
     class Meta:
         model = Employee
-        fields = '__all__'
+        fields = ['id', 'phone_number', 'notes', 'user', 'branch']
 
 
 class ScheduleSerializer(serializers.ModelSerializer):
     shift_details = serializers.SerializerMethodField()
     employee_name = serializers.SerializerMethodField()
+    employee_details = serializers.SerializerMethodField()
 
     class Meta:
         model = Schedule
-        fields = ['week_start_date', 'branch', 'shift', 'shift_details', 'employee', 'employee_name', 'status']
+        fields = ['week_start_date', 'branch', 'shift', 'shift_details', 'employee', 'employee_name', 'employee_details', 'status']
 
     def get_shift_details(self, obj):
         return {
@@ -41,7 +49,20 @@ class ScheduleSerializer(serializers.ModelSerializer):
         }
 
     def get_employee_name(self, obj):
-        return f"{obj.employee.user.first_name} {obj.employee.user.last_name}" if obj.employee else None
+        if obj.employee and obj.employee.user:
+            return f"{obj.employee.user.first_name} {obj.employee.user.last_name}"
+        print("No employee found for schedule:", obj.id)
+        return None
+
+    def get_employee_details(self, obj):
+        if obj.employee:
+            return {
+                "username": obj.employee.user.username,
+                "first_name": obj.employee.user.first_name,
+                "last_name": obj.employee.user.last_name,
+                "email": obj.employee.user.email,
+            }
+        return None
 
 
 
