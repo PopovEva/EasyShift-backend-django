@@ -14,6 +14,7 @@ from rest_framework.exceptions import APIException
 from datetime import date, timedelta
 from django.db.models import Min
 from django.db.models import Q
+from django.db.models import Max
 
 logger = logging.getLogger('system_logger')
 
@@ -197,31 +198,32 @@ class SaveScheduleView(APIView):
             for day in schedule_data:
                 for shift in day['shifts']:
                     for room in shift['rooms']:
-                        shift_instance = Shift.objects.get(
+                        shift_instances = Shift.objects.filter(
                             room__name=room['room'], 
-                            shift_type=shift['shift']
+                            shift_type=shift['shift'],
+                            day_of_week=day['day'],
+                            room__branch_id=branch_id
                         )
                         
-                        employee_id = room.get('employee')
-                        employee = None
-                        if employee_id:
-                            employee = Employee.objects.filter(id=employee_id).first()
-                            
-                        # Обновляем или создаем расписание
-                        schedule, created = Schedule.objects.update_or_create(
-                            week_start_date=week_start_date,
-                            branch=branch,
-                            shift=shift_instance,
-                            defaults={
-                                'employee': employee,
-                                'status': request.data.get('status', Schedule.DRAFT),
-                            }
-                        )
-                        if created:
-                            logger.info(f"User {user.username} created a new schedule for {shift_instance}.")
-                        else:
-                            logger.info(f"User {user.username} updated schedule for {shift_instance}.")
-            
+                        for shift_instance in shift_instances:
+                            employee_id = room.get('employee')
+                            employee = Employee.objects.filter(id=employee_id).first() if employee_id else None
+
+                            # Обновляем или создаем расписание для каждой смены
+                            schedule, created = Schedule.objects.update_or_create(
+                                week_start_date=week_start_date,
+                                branch=branch,
+                                shift=shift_instance,
+                                defaults={
+                                    'employee': employee,
+                                    'status': request.data.get('status', Schedule.DRAFT),
+                                }
+                            )
+                            if created:
+                                logger.info(f"User {user.username} created a new schedule for {shift_instance}.")
+                            else:
+                                logger.info(f"User {user.username} updated schedule for {shift_instance}.")
+
             logger.info(f"User {user.username} successfully saved schedule for branch {branch.name}.")
             return Response({"status": "Schedule saved successfully"})
         except Branch.DoesNotExist:
@@ -237,29 +239,46 @@ class GetScheduleView(APIView):
     def get(self, request, branch_id, status):
         # Получаем параметр week_start_date из запроса
         week_start_date = request.query_params.get('week_start_date', None)
-        
-        if not week_start_date:
-            # Если параметр не указан, найти ближайшую неделю
-            today = date.today()
-            week_start_date = today - timedelta(days=today.weekday() + 1)  # Воскресенье
-
         logger.debug(f"Branch ID: {branch_id}, Status: {status}, Week Start Date: {week_start_date}")
-            # # Если ближайшая неделя не найдена, используем текущую
-            # if not closest_week:
-            #     week_start_date = today - timedelta(days=today.weekday())  # Понедельник текущей недели
-            # else:
-            #     week_start_date = closest_week       
-
-        # Фильтрация по филиалу, статусу и дате начала недели
-        schedules = Schedule.objects.filter(
-            branch_id=branch_id,
-            status__in=[Schedule.DRAFT, Schedule.APPROVED],
-            week_start_date=week_start_date
-        ).select_related('shift__room', 'employee__user')  
         
+        if week_start_date:
+            # Фильтруем по указанной неделе
+            schedules = Schedule.objects.filter(
+                branch_id=branch_id,
+                status=status,
+                week_start_date=week_start_date
+            ).select_related('shift__room', 'employee__user') 
+        else:
+            # Если неделя не указана, ищем ближайшую или последнюю доступную
+            today = date.today()
+            current_week_start = today - timedelta(days=today.weekday() + 1)  # Начало текущей недели (воскресенье)   
+            # Попробуем найти расписание для текущей недели
+            schedules = Schedule.objects.filter(
+                branch_id=branch_id,
+                status=status,
+                week_start_date=current_week_start
+            ).select_related('shift__room', 'employee__user') 
+            
+            if not schedules.exists():
+                # Если расписания для текущей недели нет, находим последнюю доступную неделю
+                last_week_start = Schedule.objects.filter(
+                    branch_id=branch_id,
+                    status=status,
+                ).aggregate(Max('week_start_date'))['week_start_date__max']
+
+                if last_week_start:
+                    schedules = Schedule.objects.filter(
+                        branch_id=branch_id,
+                        # status=status.upper(),
+                        # status__in=[Schedule.DRAFT, Schedule.APPROVED],
+                        status=status,
+                        week_start_date=last_week_start
+                    ).select_related('shift__room', 'employee__user')
+              
+        # Если расписания не найдены, возвращаем пустой массив
         if not schedules.exists():
-            logger.warning(f"No schedules found for Branch {branch_id} on Week {week_start_date}")
-            return Response({"error": "No schedules found"}, status=404)
+            logger.info(f"No schedules found for Branch {branch_id} with status {status} on Week {week_start_date}.")
+            return Response([], status=200)
         
         # Формируем данные для ответа
         data = [
@@ -267,11 +286,11 @@ class GetScheduleView(APIView):
                 "week_start_date": schedule.week_start_date,
                 "shift_details": {
                     "shift_type": schedule.shift.shift_type,
-                    "room": schedule.shift.room.name if schedule.shift and schedule.shift.room else None,
+                    "room": schedule.shift.room.name if schedule.shift.room else None,
                 },
-                "day": schedule.shift.day_of_week if schedule.shift else None,
+                "day": schedule.shift.day_of_week,
                 "employee_name": schedule.employee.user.get_full_name() if schedule.employee else None,
-                "employee_id": schedule.employee.id if schedule.employee else None,  # Добавлен ID сотрудника
+                "employee_id": schedule.employee.id if schedule.employee else None,
             }
             for schedule in schedules
         ]
@@ -314,35 +333,30 @@ class UpdateScheduleView(APIView):
                 room_name = schedule_data['shift_details']['room']
                 employee_id = schedule_data.get('employee_id')
 
-                shift = Shift.objects.filter(
+                # Поиск существующей смены
+                shifts = Shift.objects.filter(
                     room__name=room_name,
                     shift_type=shift_type,
                     day_of_week=day,
                     room__branch_id=branch_id,
-                ).first()
-
-                if not shift:
-                    logger.error(f"Shift not found: {room_name}, {shift_type}, {day}")
-                    continue
-
-                employee = None
-                if employee_id:
-                    employee = Employee.objects.filter(id=employee_id).first()
-
-                schedule, created = Schedule.objects.update_or_create(
-                    shift=shift,
-                    week_start_date=schedule_data['week_start_date'],
-                    branch_id=branch_id,
-                    defaults={
-                        'employee': employee,
-                        'status': new_status or Schedule.DRAFT,
-                    },
                 )
 
-                if created:
-                    logger.info(f"Created schedule: {schedule}")
-                else:
-                    logger.info(f"Updated schedule: {schedule}")
+                for shift_instance in shifts:
+                    schedule = Schedule.objects.filter(
+                        shift=shift_instance,
+                        week_start_date=schedule_data['week_start_date'],
+                        branch_id=branch_id,
+                    ).first()
+
+                    if schedule:
+                        # Обновление существующего расписания
+                        schedule.employee = Employee.objects.filter(id=employee_id).first() if employee_id else None
+                        schedule.status = new_status or Schedule.DRAFT
+                        schedule.save()
+                        logger.info(f"Updated schedule: {schedule}")
+                    else:
+                        logger.warning(f"No existing schedule found for shift: {shift_instance} on {schedule_data['week_start_date']}")
+
             logger.info(f"User {user.username} successfully updated schedule for branch {branch_id}.")
             return Response({"status": "Schedules updated successfully"}, status=200)
         except Exception as e:
@@ -354,7 +368,13 @@ class AvailableWeeksView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, branch_id):
-        weeks = Schedule.objects.filter(branch_id=branch_id).values_list('week_start_date', flat=True).distinct()
+        status = request.query_params.get("status", None)  # Получаем статус из параметров
+        weeks_query = Schedule.objects.filter(branch_id=branch_id)
+
+        if status:
+            weeks_query = weeks_query.filter(status=status)
+
+        weeks = weeks_query.values_list("week_start_date", flat=True).distinct()
         sorted_weeks = sorted(set(weeks))  # Уникальные и отсортированные даты
         return Response(sorted_weeks)
 
