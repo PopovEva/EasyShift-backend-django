@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
-from .models import Branch, Room, Shift, Employee, Schedule
+from .models import Branch, Notification, Room, Shift, Employee, Schedule
 from .serializers import BranchSerializer, RoomSerializer, ShiftSerializer, EmployeeSerializer, ScheduleSerializer, UserEmployeeSerializer
 from .permissions import IsAdminOrReadOnly, IsWorkerOrAdmin
 from django.contrib.auth.models import Group, User
@@ -231,7 +231,7 @@ class SaveScheduleView(APIView):
             return Response({"error": "Branch not found"}, status=404)
         except Exception as e:
             logger.exception(f"User {user.username} encountered an error while saving schedule: {str(e)}")
-            return Response({"error": str(e)}, status=500)         
+            return Response({"error": str(e)}, status=500)
 
 class GetScheduleView(APIView):
     permission_classes = [IsAuthenticated]
@@ -320,45 +320,55 @@ class UpdateScheduleView(APIView):
         logger.info(f"User {user.username} initiated schedule update")
         branch_id = request.data.get('branch_id')
         updated_schedules = request.data.get('schedules', [])
-        new_status = request.data.get('status')
+        new_status = request.data.get('status', None)
 
         if not branch_id or not updated_schedules:
             logger.warning(f"Invalid update request by {user.username}: {request.data}")
             return Response({"error": "Branch ID and schedules are required"}, status=400)
 
         try:
+            updated_count = 0  # Для логирования успешных обновлений
+            
             for schedule_data in updated_schedules:
-                day = schedule_data['day']
+                day = schedule_data.get('day')
                 shift_type = schedule_data['shift_details']['shift_type']
                 room_name = schedule_data['shift_details']['room']
                 employee_id = schedule_data.get('employee_id')
 
-                # Поиск существующей смены
+                # Получаем ВСЕ смены для указанной комнаты, типа смены и дня недели
                 shifts = Shift.objects.filter(
                     room__name=room_name,
                     shift_type=shift_type,
                     day_of_week=day,
-                    room__branch_id=branch_id,
+                    room__branch_id=branch_id
                 )
+                
+                if not shifts.exists():
+                    logger.warning(f"No matching shifts found for {room_name} {shift_type} on {day}")
+                    continue
 
                 for shift_instance in shifts:
-                    schedule = Schedule.objects.filter(
+                    # Поиск всех расписаний для этой смены
+                    schedules = Schedule.objects.filter(
                         shift=shift_instance,
                         week_start_date=schedule_data['week_start_date'],
-                        branch_id=branch_id,
-                    ).first()
+                        branch_id=branch_id
+                    )
 
-                    if schedule:
-                        # Обновление существующего расписания
-                        schedule.employee = Employee.objects.filter(id=employee_id).first() if employee_id else None
-                        schedule.status = new_status or Schedule.DRAFT
-                        schedule.save()
-                        logger.info(f"Updated schedule: {schedule}")
+                    if schedules.exists():
+                        for schedule in schedules:
+                            # Обновляем расписание
+                            schedule.employee = Employee.objects.filter(id=employee_id).first() if employee_id else None
+                            if new_status:
+                                schedule.status = new_status  # Применяем новый статус, если передан
+                            schedule.save()
+                            updated_count += 1
+                            logger.info(f"Updated schedule {schedule.id} - Status: {schedule.status}")
                     else:
-                        logger.warning(f"No existing schedule found for shift: {shift_instance} on {schedule_data['week_start_date']}")
+                        logger.warning(f"No schedule found for shift {shift_instance} on {schedule_data['week_start_date']}")
 
-            logger.info(f"User {user.username} successfully updated schedule for branch {branch_id}.")
-            return Response({"status": "Schedules updated successfully"}, status=200)
+            logger.info(f"User {user.username} successfully updated {updated_count} schedules for branch {branch_id}.")
+            return Response({"status": "Schedules updated successfully", "updated_count": updated_count}, status=200)
         except Exception as e:
             logger.exception("Error updating schedules")
             return Response({"error": str(e)}, status=500)
@@ -425,4 +435,48 @@ class SubmitAvailabilityView(APIView):
 
         return Response({"status": "Availability submitted successfully."})
     
+class EmployeeNotificationsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        try:
+            employee = Employee.objects.get(user=user)
+        except Employee.DoesNotExist:
+            return Response({"error": "Employee not found"}, status=404)
+
+        notifications = Notification.objects.filter(employee=employee).order_by("-created_at")
+        data = [
+            {
+                "id": notif.id,
+                "message": notif.message,
+                "created_at": notif.created_at.strftime("%Y-%m-%d %H:%M"),
+                "is_read": notif.is_read,
+            }
+            for notif in notifications
+        ]
+        return Response(data)
+    
+class AdminNotificationsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        try:
+            admin_employee = Employee.objects.get(user=user)
+        except Employee.DoesNotExist:
+            return Response({"error": "Admin not found"}, status=404)
+
+        # Получаем только уведомления, относящиеся к филиалу администратора
+        notifications = Notification.objects.filter(employee__branch=admin_employee.branch).order_by("-created_at")
         
+        data = [
+            {
+                "id": notif.id,
+                "message": notif.message,
+                "created_at": notif.created_at.strftime("%Y-%m-%d %H:%M"),
+                "is_read": notif.is_read,
+            }
+            for notif in notifications
+        ]
+        return Response(data)    

@@ -92,3 +92,11 @@ class Schedule(models.Model):
         return f"{self.week_start_date} - {self.branch.name} ({self.status})"
 
 
+class Notification(models.Model):
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+    
+    def __str__(self):
+        return f"Notification for {self.employee.user.username} - {self.message[:30]}"
