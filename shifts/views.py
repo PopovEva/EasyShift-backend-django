@@ -4,6 +4,11 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import action
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework.decorators import api_view
 from .models import Branch, Notification, Room, Shift, Employee, Schedule
 from .serializers import BranchSerializer, RoomSerializer, ShiftSerializer, EmployeeSerializer, ScheduleSerializer, UserEmployeeSerializer
 from .permissions import IsAdminOrReadOnly, IsWorkerOrAdmin
@@ -52,7 +57,26 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 class ScheduleViewSet(viewsets.ModelViewSet):
     queryset = Schedule.objects.all()
     serializer_class = ScheduleSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]  # Доступ для работников и админов
+    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+    
+    @action(detail=False, methods=['delete'], url_path='delete-by-week')
+    def delete_by_week(self, request):
+        branch_id = request.query_params.get('branch_id')
+        week_start_date = request.query_params.get('week_start_date')
+
+        if not branch_id or not week_start_date:
+            return Response({"error": "Branch ID and week start date are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        deleted_count, _ = Schedule.objects.filter(
+            branch_id=branch_id, week_start_date=week_start_date
+        ).delete()
+
+        if deleted_count > 0:
+            logger.info(f"User {request.user.username} deleted {deleted_count} schedule entries for week {week_start_date} in branch {branch_id}.")
+            return Response({"message": f"Deleted {deleted_count} schedule entries"}, status=status.HTTP_204_NO_CONTENT)
+        else:
+            logger.warning(f"User {request.user.username} attempted to delete schedules for week {week_start_date} in branch {branch_id}, but none were found.")
+            return Response({"error": "No schedules found for the given week"}, status=status.HTTP_404_NOT_FOUND)
 
 
 class CreateEmployeeView(APIView):
@@ -457,6 +481,33 @@ class EmployeeNotificationsView(APIView):
         ]
         return Response(data)
     
+@api_view(['POST'])
+def refresh_token(request):
+    """
+    Обновление access-токена с проверкой blacklist.
+    """
+    try:
+        refresh_token = request.data.get('refresh')
+        if not refresh_token:
+            logger.warning("Попытка обновления токена без refresh-токена")
+            return Response({"error": "Refresh token is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Проверяем, находится ли токен в черном списке
+        if BlacklistedToken.objects.filter(token=refresh_token).exists():
+            logger.warning(f"Попытка использования заблокированного refresh-токена: {refresh_token}")
+            return Response({"error": "Token has been blacklisted"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        refresh = RefreshToken(refresh_token)
+        access_token = str(refresh.access_token)
+
+        logger.info(f"Access-токен успешно обновлен для пользователя {request.user.username}")
+
+        return Response({"access": access_token}, status=status.HTTP_200_OK)
+
+    except TokenError:
+        logger.error("Ошибка при обновлении токена: недействительный refresh-токен")
+        return Response({"error": "Invalid refresh token"}, status=status.HTTP_401_UNAUTHORIZED)
+    
 class AdminNotificationsView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -479,4 +530,4 @@ class AdminNotificationsView(APIView):
             }
             for notif in notifications
         ]
-        return Response(data)    
+        return Response(data)
