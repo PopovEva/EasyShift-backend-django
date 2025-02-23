@@ -1,7 +1,7 @@
 # shifts/urls.py
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import AdminNotificationsView, AvailableWeeksView, BranchViewSet, EmployeeNotificationsView, GetScheduleView, RoomViewSet, RoomsByBranchView, ShiftViewSet, EmployeeViewSet, ScheduleViewSet, CreateEmployeeView, CreateScheduleView, SaveScheduleView, UpdateScheduleView, refresh_token
+from .views import AdminNotificationsView, AvailableWeeksView, BranchViewSet, EmployeeNotificationsView, GetScheduleView, RoomViewSet, RoomsByBranchView, ShiftViewSet, EmployeeViewSet, ScheduleViewSet, CreateEmployeeView, CreateScheduleView, SaveScheduleView, UpdateScheduleView, refresh_token, UpdateUserView
 
 router = DefaultRouter()
 router.register(r'branches', BranchViewSet)
@@ -22,4 +22,5 @@ urlpatterns = [
     path('employee-notifications/', EmployeeNotificationsView.as_view(), name='employee-notifications'),
     path('admin-notifications/', AdminNotificationsView.as_view(), name='admin-notifications'),
     path('token/refresh/', refresh_token, name='token-refresh'),
+    path('update-user/', UpdateUserView.as_view(), name='update-user'),
 ]

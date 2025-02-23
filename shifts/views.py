@@ -531,3 +531,51 @@ class AdminNotificationsView(APIView):
             for notif in notifications
         ]
         return Response(data)
+    
+class UpdateUserView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request):
+        user = request.user  # Get authenticated user
+        data = request.data
+
+        try:
+            # Update user fields
+            user.first_name = data.get("first_name", user.first_name)
+            user.last_name = data.get("last_name", user.last_name)
+            user.email = data.get("email", user.email)
+
+            if "password" in data and data["password"]:
+                user.set_password(data["password"])  # Hash new password
+
+            user.save()
+
+            # Update Employee details if exist
+            try:
+                employee = Employee.objects.get(user=user)
+                employee.phone_number = data.get("phone_number", employee.phone_number)
+                employee.notes = data.get("notes", employee.notes)
+                employee.save()
+            except Employee.DoesNotExist:
+                logger.warning(f"Employee record not found for user {user.username}")
+
+            logger.info(f"User {user.username} updated their profile successfully.")
+
+            return Response(
+                {
+                    "message": "Profile updated successfully",
+                    "user": {
+                        "username": user.username,
+                        "first_name": user.first_name,
+                        "last_name": user.last_name,
+                        "email": user.email,
+                        "phone_number": employee.phone_number if employee else None,
+                        "notes": employee.notes if employee else None,
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.exception(f"Error updating profile for user {user.username}: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)    
