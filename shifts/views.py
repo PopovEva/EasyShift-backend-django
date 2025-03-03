@@ -52,6 +52,31 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         if branch_id:
             return self.queryset.filter(branch_id=branch_id)
         return self.queryset
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+
+        # Обновляем вложенные данные пользователя
+        user_data = request.data.get('user', {})
+        if user_data:
+            user = instance.user
+            user.username = user_data.get('username', user.username)
+            user.first_name = user_data.get('first_name', user.first_name)
+            user.last_name = user_data.get('last_name', user.last_name)
+            # Если email передан и не пуст, используем его, иначе оставляем старый email
+            user.email = user_data.get('email', user.email) or user.email
+            if 'password' in user_data and user_data.get('password'):
+                user.set_password(user_data.get('password'))
+            user.save()
+
+        # Убираем данные user, чтобы сериализатор не пытался обновлять их снова
+        data = request.data.copy()
+        data.pop('user', None)
+
+        serializer = self.get_serializer(instance, data=data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)
 
 
 class ScheduleViewSet(viewsets.ModelViewSet):
