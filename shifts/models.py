@@ -72,6 +72,12 @@ class Employee(models.Model):
 
     def __str__(self):
         return f"{self.user.first_name} {self.user.last_name} ({self.branch.name})"
+    
+    def delete(self, *args, **kwargs):
+        # Delete the associated user first
+        self.user.delete()
+        # Then delete the Employee instance
+        super().delete(*args, **kwargs)
 
 
 class Schedule(models.Model):
