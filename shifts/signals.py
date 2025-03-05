@@ -27,6 +27,13 @@ def log_shift_changes(sender, instance, created, **kwargs):
 def log_shift_deletion(sender, instance, **kwargs):
     logger.info(f"Shift deleted: {instance}") 
     
+@receiver(post_delete, sender=Schedule)
+def delete_unused_shift(sender, instance, **kwargs):
+    shift = instance.shift
+    if not Schedule.objects.filter(shift=shift).exists():
+        shift.delete()
+        logger.info(f"Deleted unused shift: {shift}")    
+    
 # @receiver(post_save, sender=Schedule)
 # def create_schedule_notification(sender, instance, created, **kwargs):
 #     if instance.status == Schedule.APPROVED and instance.employee:
