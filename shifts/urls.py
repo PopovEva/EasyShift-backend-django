@@ -1,7 +1,13 @@
 # shifts/urls.py
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import AdminNotificationsView, AvailableWeeksView, BranchViewSet, EmployeeNotificationsView, GetScheduleView, RoomViewSet, RoomsByBranchView, ShiftViewSet, EmployeeViewSet, ScheduleViewSet, CreateEmployeeView, CreateScheduleView, SaveScheduleView, UpdateScheduleView, refresh_token, UpdateUserView
+from .views import (
+    AdminNotificationsView, AvailableWeeksView, BranchViewSet, EmployeeNotificationsView,
+    GetScheduleView, RoomViewSet, RoomsByBranchView, ShiftViewSet, EmployeeViewSet,
+    ScheduleViewSet, CreateEmployeeView, CreateScheduleView, SaveScheduleView,
+    UpdateScheduleView, refresh_token, UpdateUserView, ShiftPreferenceView,
+    ShiftPreferenceAdminView, ShiftPreferenceDetailView
+    )
 
 router = DefaultRouter()
 router.register(r'branches', BranchViewSet)
@@ -23,4 +29,7 @@ urlpatterns = [
     path('admin-notifications/', AdminNotificationsView.as_view(), name='admin-notifications'),
     path('token/refresh/', refresh_token, name='token-refresh'),
     path('update-user/', UpdateUserView.as_view(), name='update-user'),
+    path('shift-preferences/', ShiftPreferenceView.as_view(), name='shift-preferences'),
+    path('shift-preferences-admin/', ShiftPreferenceAdminView.as_view(), name='shift-preferences-admin'),
+    path('shift-preferences/<int:pk>/', ShiftPreferenceDetailView.as_view(), name='shift-preference-detail'),
 ]

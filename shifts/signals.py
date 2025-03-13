@@ -29,7 +29,12 @@ def log_shift_deletion(sender, instance, **kwargs):
     
 @receiver(post_delete, sender=Schedule)
 def delete_unused_shift(sender, instance, **kwargs):
-    shift = instance.shift
+    try:
+        shift = instance.shift
+    except Shift.DoesNotExist:
+        logger.info(f"Shift for Schedule {instance.id} does not exist; possibly already deleted.")
+        return
+    
     if not Schedule.objects.filter(shift=shift).exists():
         shift.delete()
         logger.info(f"Deleted unused shift: {shift}")    

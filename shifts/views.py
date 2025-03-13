@@ -3,14 +3,14 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import generics
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.decorators import action
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework.decorators import api_view
-from .models import Branch, Notification, Room, Shift, Employee, Schedule
-from .serializers import BranchSerializer, RoomSerializer, ShiftSerializer, EmployeeSerializer, ScheduleSerializer, UserEmployeeSerializer
+from .models import Branch, Notification, Room, Shift, Employee, Schedule, ShiftPreference
+from .serializers import BranchSerializer, RoomSerializer, ShiftSerializer, EmployeeSerializer, ScheduleSerializer, UserEmployeeSerializer, ShiftPreferenceSerializer
 from .permissions import IsAdminOrReadOnly, IsWorkerOrAdmin
 from django.contrib.auth.models import Group, User
 from django.utils.dateparse import parse_date
@@ -204,12 +204,12 @@ class CreateScheduleView(APIView):
                             employee = Employee.objects.filter(id=employee_id).first()
 
                         # Создаём смену
-                        shift, created = Shift.objects.get_or_create(
+                        shift = Shift.objects.create(
                             room=room,
                             shift_type=shift_type,
                             day_of_week=day_of_week,
                             date=start_date,
-                            start_time=None,  # Может быть заполнено позже
+                            start_time=None,
                             end_time=None
                         )
 
@@ -603,4 +603,56 @@ class UpdateUserView(APIView):
 
         except Exception as e:
             logger.exception(f"Error updating profile for user {user.username}: {str(e)}")
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)    
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        
+# View для работников (создание и просмотр своих предпочтений)
+class ShiftPreferenceView(generics.ListCreateAPIView):
+    serializer_class = ShiftPreferenceSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        employee = Employee.objects.get(user=self.request.user)
+        week_start_date = self.request.query_params.get('week_start_date')
+        return ShiftPreference.objects.filter(employee=employee, week_start_date=week_start_date)
+
+    def create(self, request, *args, **kwargs):
+        employee = Employee.objects.get(user=request.user)
+        many = isinstance(request.data, list)
+        serializer = self.get_serializer(data=request.data, many=many)
+        serializer.is_valid(raise_exception=True)
+        
+        if many:
+            objects = []
+            for item in serializer.validated_data:
+                item['employee'] = employee
+                item['branch'] = employee.branch
+                # status будет выставлен по умолчанию в 'pending'
+                objects.append(ShiftPreference(**item))
+            created_objs = ShiftPreference.objects.bulk_create(objects)
+            output_serializer = self.get_serializer(created_objs, many=True)
+            return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+        else:
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def perform_create(self, serializer):
+        employee = Employee.objects.get(user=self.request.user)
+        serializer.save(employee=employee, branch=employee.branch)
+
+# View для администраторов (просмотр предпочтений сотрудников филиала)
+class ShiftPreferenceAdminView(generics.ListAPIView):
+    serializer_class = ShiftPreferenceSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get_queryset(self):
+        branch_id = self.request.query_params.get('branch_id')
+        week_start_date = self.request.query_params.get('week_start_date')
+        return ShiftPreference.objects.filter(branch_id=branch_id, week_start_date=week_start_date)
+
+# This view allows retrieving, updating, or deleting a single ShiftPreference object.
+class ShiftPreferenceDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = ShiftPreferenceSerializer
+    queryset = ShiftPreference.objects.all()
+    permission_classes = [IsAuthenticated]    

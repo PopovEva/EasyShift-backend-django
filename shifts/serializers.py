@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User, Group
-from .models import Branch, Room, Shift, Employee, Schedule
+from .models import Branch, Room, Shift, Employee, Schedule, ShiftPreference
 
 class BranchSerializer(serializers.ModelSerializer):
     class Meta:
@@ -133,3 +133,15 @@ class UserEmployeeSerializer(serializers.ModelSerializer):
             representation['notes'] = None
 
         return representation
+        
+class ShiftPreferenceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ShiftPreference
+        fields = '__all__'
+        read_only_fields = ['employee', 'branch']  # Работник не может менять эти поля вручную
+    
+    def create(self, validated_data):
+        # Убираем переданное значение status, если оно есть, и принудительно задаём 'pending'
+        validated_data.pop('status', None)
+        validated_data['status'] = 'pending'
+        return super().create(validated_data)

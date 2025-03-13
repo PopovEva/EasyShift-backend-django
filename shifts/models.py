@@ -106,3 +106,25 @@ class Notification(models.Model):
     
     def __str__(self):
         return f"Notification for {self.employee.user.username} - {self.message[:30]}"
+    
+
+class ShiftPreference(models.Model):
+    employee = models.ForeignKey('Employee', on_delete=models.CASCADE, related_name='shift_preferences')
+    branch = models.ForeignKey('Branch', on_delete=models.CASCADE)
+    week_start_date = models.DateField()
+    day = models.CharField(max_length=10)  # Например, "ראשון", "שני", ...
+    shift_type = models.CharField(max_length=20)  # Например: בוקר, אמצע, ערב
+    room = models.ForeignKey('Room', on_delete=models.CASCADE)
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+
+    class Meta:
+        unique_together = ('employee', 'week_start_date', 'day', 'shift_type', 'room')
+
+    def __str__(self):
+        return f"{self.employee} - {self.week_start_date} - {self.day} - {self.shift_type} - {self.room}"
