@@ -11,7 +11,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework.decorators import api_view
 from .models import Branch, Notification, Room, Shift, Employee, Schedule, ShiftPreference
 from .serializers import BranchSerializer, RoomSerializer, ShiftSerializer, EmployeeSerializer, ScheduleSerializer, UserEmployeeSerializer, ShiftPreferenceSerializer
-from .permissions import IsAdminOrReadOnly, IsWorkerOrAdmin
+from .permissions import IsAdminGroup, IsAdminOrReadOnly, IsWorkerOrAdmin
 from django.contrib.auth.models import Group, User
 from django.utils.dateparse import parse_date
 import logging
@@ -336,6 +336,10 @@ class GetScheduleView(APIView):
                 "shift_details": {
                     "shift_type": schedule.shift.shift_type,
                     "room": schedule.shift.room.name if schedule.shift.room else None,
+                    "room_details": {
+                      "id": schedule.shift.room.id if schedule.shift.room else None,
+                      "name": schedule.shift.room.name if schedule.shift.room else None,
+                    }
                 },
                 "day": schedule.shift.day_of_week,
                 "employee_name": schedule.employee.user.get_full_name() if schedule.employee else None,
@@ -644,7 +648,7 @@ class ShiftPreferenceView(generics.ListCreateAPIView):
 # View для администраторов (просмотр предпочтений сотрудников филиала)
 class ShiftPreferenceAdminView(generics.ListAPIView):
     serializer_class = ShiftPreferenceSerializer
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [IsAuthenticated, IsAdminGroup]
 
     def get_queryset(self):
         branch_id = self.request.query_params.get('branch_id')

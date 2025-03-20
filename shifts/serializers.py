@@ -37,16 +37,24 @@ class ScheduleSerializer(serializers.ModelSerializer):
     shift_details = serializers.SerializerMethodField()
     employee_name = serializers.SerializerMethodField()
     employee_details = serializers.SerializerMethodField()
+    room_details = serializers.SerializerMethodField()
 
     class Meta:
         model = Schedule
-        fields = ['week_start_date', 'branch', 'shift', 'shift_details', 'employee', 'employee_name', 'employee_details', 'status']
+        fields = ['week_start_date', 'branch', 'shift', 'shift_details', 'employee', 'employee_name', 'employee_details', 'room_details', 'status']
 
     def get_shift_details(self, obj):
         return {
             "room": obj.shift.room.name,
             "shift_type": obj.shift.shift_type,
         }
+        
+    def get_room_details(self, obj):
+        # New field returns an object with id and name
+        return {
+            "id": obj.shift.room.id,
+            "name": obj.shift.room.name,
+        }    
 
     def get_employee_name(self, obj):
         if obj.employee and obj.employee.user:
@@ -135,13 +143,22 @@ class UserEmployeeSerializer(serializers.ModelSerializer):
         return representation
         
 class ShiftPreferenceSerializer(serializers.ModelSerializer):
+    employee_details = serializers.SerializerMethodField()
     class Meta:
         model = ShiftPreference
         fields = '__all__'
-        read_only_fields = ['employee', 'branch']  # Работник не может менять эти поля вручную
+        read_only_fields = ['employee', 'branch']
     
     def create(self, validated_data):
         # Убираем переданное значение status, если оно есть, и принудительно задаём 'pending'
         validated_data.pop('status', None)
         validated_data['status'] = 'pending'
         return super().create(validated_data)
+    
+    def get_employee_details(self, obj):
+        if obj.employee and obj.employee.user:
+            return {
+                "first_name": obj.employee.user.first_name,
+                "last_name": obj.employee.user.last_name,
+            }
+        return {}
