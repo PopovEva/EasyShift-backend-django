@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: easyshift-backend
+    env: python
+    buildCommand: ""
+    startCommand: gunicorn work_shift_scheduler.wsgi:application
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: work_shift_scheduler.settings
+      - key: PYTHON_VERSION
+        value: 3.12.1
+      - key: ALLOWED_HOSTS
+        value: easyshift-backend.onrender.com
