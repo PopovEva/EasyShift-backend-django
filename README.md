@@ -1,6 +1,6 @@
 # EasyShift - Backend
 
-This is the backend repository for **EasyShift**, a shift scheduling management system built with Django and Django REST Framework. It provides comprehensive management features for administrators and easy access for employees to manage work schedules efficiently.
+This is the backend repository for **EasyShift**, a shift scheduling management system designed for multi-branch operations. It is built using Django and Django REST Framework. It provides comprehensive management features for administrators and easy access for employees to manage work schedules efficiently.
 
 ## 🛠 Tech Stack
 
@@ -14,16 +14,22 @@ This is the backend repository for **EasyShift**, a shift scheduling management 
 ## 🚀 Features
 
 ### Admin Features:
-- Create, update, delete schedules
-- Approve and publish weekly schedules
-- Employee management (CRUD operations)
-- Manage branches and rooms
-- View notifications from employees
+- ✅ Full CRUD operations for employees, shifts, schedules, branches, rooms and ShiftPreference.
+- ✅ Weekly schedule creation, approval, and status management (draft/approved).
+- ✅ Approve, publish  and manage weekly schedules
+- ✅ Manage branches and rooms
+- ✅ JWT-based authentication (access and refresh tokens).
+- ✅ Role-based access (Admin and Worker).
+- ✅ Handle shift preferences submissions from employees.
+- ✅ Create schedules based on employee preferences.
+- ✅ View notifications from employees
+- ✅ Mobile responsive admin panel for on-the-go management.
+- ✅ Optimized API responses for mobile-first UI integration.
 
 ### Employee Features:
 - View weekly schedules
-- Submit shift availability preferences (planned)
-- View notifications
+- Submit shift availability preferences
+- Receive notifications related to shifts and administrative announcements.
 
 ## 📂 Project Structure
 
@@ -126,6 +132,15 @@ CORS_ALLOWED_ORIGINS = [
 | GET    | `/api/admin-notifications/` | Admin notifications |
 | GET    | `/api/employee-notifications/` | Employee notifications |
 
+
+
+- `/branches/`, `/rooms/`, `/shifts/`, `/employees/`, `/schedules/` – full CRUD.
+- `/create-schedule/`, `/update-schedule/`, `/available-weeks/<branch_id>/`
+- `/shift-preferences/` – worker submission of shift preferences.
+- `/shift-preferences-admin/` – admin view of submitted preferences.
+- `/user-info/`, `/admin-notifications/`, `/employee-notifications/` – user and notification info.
+- `/token/`, `/token/refresh/` – JWT authentication.
+
 ## 📝 Frontend
 Frontend repository:
 - [EasyShift Frontend (React)](https://github.com/PopovEva/EasyShift-frontend-react)
@@ -144,7 +159,8 @@ tzdata==2024.2
 ```
 
 ## 🔮 Future Features
-- Employee shift preference submissions
+- Employee shift preference submissions-Done✅
+- The system is designed to support mobile and desktop-friendly UI.✅
 - Automated scheduling optimization using AI
 
 ## 📌 Contributing
