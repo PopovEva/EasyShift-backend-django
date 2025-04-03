@@ -2,10 +2,7 @@
 
 This is the backend repository for **EasyShift**, a shift scheduling management system designed for multi-branch operations. It is built using Django and Django REST Framework. It provides comprehensive management features for administrators and easy access for employees to manage work schedules efficiently.
 
-## 🌐 Live Deployment
-
-- 🖥️ **Frontend:** [https://easy-shift-frontend-react.vercel.app](https://easy-shift-frontend-react.vercel.app)
-- 🔗 **Backend API (for developers):** [View API Endpoints](https://easyshift-backend-django.onrender.com/api/) (For API testing and development)
+---
 
 ## 🛠 Tech Stack
 
@@ -35,6 +32,22 @@ This is the backend repository for **EasyShift**, a shift scheduling management 
 - View weekly schedules
 - Submit shift availability preferences
 - Receive notifications related to shifts and administrative announcements.
+
+## 🌐 Live Deployment
+
+- 🖥️ **Frontend:** [https://easyshift.vercel.app](https://easyshift.vercel.app)
+<!-- - 🔗 **Backend API (for developers):** [View API Endpoints](https://easyshift-backend-django.onrender.com/api/) (For API testing and development) -->
+
+### 👤 Demo Accounts
+Use the following demo accounts to explore the system:
+
+### 🔑 Admin Login
+- **Email:** `Adi`
+- **Password:** `adiadi`
+
+### 👷 Worker Login
+- **Email:** `Tom`
+- **Password:** `123123`
 
 ## 📂 Project Structure
 
