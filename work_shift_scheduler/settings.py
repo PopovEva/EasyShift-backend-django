@@ -207,5 +207,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
-    "https://easy-shift-frontend-react.vercel.app"
+    'https://easy-shift-frontend-react.vercel.app',
+    'https://easyshift.vercel.app'
 ]
